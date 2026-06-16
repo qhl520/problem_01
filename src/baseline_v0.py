@@ -1,3 +1,14 @@
+"""DEPRECATED: V0 baseline — copies August 2014 values one month forward.
+
+A naive baseline that predicts each September day using the same day-of-month
+from August 2014 (or the August mean when no match exists).
+
+Superseded by the rule models in ``src/rule_models.py`` and the canonical
+ensemble pipeline ``src/predict_final.py``.
+
+Kept for reference only; not used by ``run_all.py`` or ``run_original_plus_121.py``.
+"""
+
 from __future__ import annotations
 
 import shutil

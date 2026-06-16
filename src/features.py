@@ -103,8 +103,8 @@ def _target_history_features(out: pd.DataFrame) -> pd.DataFrame:
             out[f"{target}_rolling_{window}_max"] = shifted.rolling(window).max()
             out[f"{target}_rolling_{window}_min"] = shifted.rolling(window).min()
             out[f"{target}_rolling_{window}_sum"] = shifted.rolling(window).sum()
-        for idx, lag in enumerate([7, 14, 21, 28], start=1):
-            out[f"{target}_same_weekday_last_{idx}"] = out[target].shift(lag)
+        # same_weekday_last_{idx} removed — they were identical to lag_7/14/21/28.
+        # The mean/median aggregations below still use the shifted values directly.
         same_weekday_4 = pd.concat([out[target].shift(lag) for lag in [7, 14, 21, 28]], axis=1)
         same_weekday_8 = pd.concat([out[target].shift(lag) for lag in [7, 14, 21, 28, 35, 42, 49, 56]], axis=1)
         out[f"{target}_same_weekday_mean_4"] = same_weekday_4.mean(axis=1)
@@ -173,8 +173,16 @@ def _add_finance_lags(out: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def make_features(df: pd.DataFrame, use_finance: bool = True, use_profile: bool = True, outlier_mode: str = "none") -> pd.DataFrame:
-    del use_profile, outlier_mode
+def make_features(df: pd.DataFrame, use_finance: bool = True) -> pd.DataFrame:
+    """Build feature matrix from daily balance data.
+
+    Args:
+        df: DataFrame with columns date, purchase, redeem.
+        use_finance: If True, attach Shibor and yield features with lag.
+
+    Returns:
+        Feature DataFrame with date, purchase, redeem, and derived columns.
+    """
     out = df.copy()
     out["date"] = pd.to_datetime(out["date"])
     out = out.sort_values("date").reset_index(drop=True)

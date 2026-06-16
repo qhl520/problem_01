@@ -1,3 +1,11 @@
+"""Generate user-profile daily features (active users, per-user averages, sex-split totals).
+
+NOTE: This module is a work-in-progress. The generated features are NOT currently
+integrated into the main make_features() pipeline. The make_features() function
+no longer accepts a use_profile parameter — profile-feature integration was
+explored but not included in the final 121-score submission.
+"""
+
 from __future__ import annotations
 
 import pandas as pd

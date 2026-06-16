@@ -1,3 +1,16 @@
+"""DEPRECATED: Legacy single-fold LightGBM training script.
+
+This module performs a single train/validate split (train ≤2014-07-31, validate
+2014-08) and saves models as ``lightgbm_purchase.pkl`` / ``lightgbm_redeem.pkl``.
+
+Use the canonical pipeline instead:
+    - Training:  ``src/train_final.py``                   (saves final_lightgbm_*.pkl)
+    - CV:        ``src/cross_validate.py --model lightgbm`` (3-fold evaluation)
+    - Prediction: ``src/predict_final.py``                 (ensemble prediction)
+
+Kept for reference only; not used by ``run_all.py`` or ``run_original_plus_121.py``.
+"""
+
 from __future__ import annotations
 
 import pandas as pd

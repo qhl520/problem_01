@@ -1,3 +1,15 @@
+"""DEPRECATED: Legacy single-model RandomForest prediction script.
+
+Reads ``random_forest_purchase.pkl`` / ``random_forest_redeem.pkl`` and produces a
+single-model submission. These model files are saved by the deprecated
+``src/train_random_forest.py``, NOT by the canonical ``src/train_final.py``.
+
+Use the canonical pipeline instead:
+    ``src/predict_final.py`` — ensemble prediction using all model + rule components.
+
+Kept for reference only; not used by ``run_all.py`` or ``run_original_plus_121.py``.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
