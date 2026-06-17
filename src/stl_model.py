@@ -475,10 +475,13 @@ class STLModel:
         self.user_count_model: Optional[tuple] = None
 
     def fit(self, daily: pd.DataFrame) -> STLModel:
-        """Fit the STL model on historical daily per-capita data.
+        """Fit the STL model on historical daily per-capita data (PPT Steps 1-4).
 
-        Args:
-            daily: Output of compute_daily_stats() with date index.
+        Step 1: ARIMA(0,1,0) → f1 (daily mean for September)
+        Step 2: Weekly STL(freq=7) → S_week, f_feast from holiday residuals.
+                Monthly STL(freq=30, Apr-Aug) → S_month.
+                The f_feast computation IS the "节假日修正" (Step 3 in PPT).
+        Step 4: f_bigfeast coefficient table from month-end residuals.
         """
         self.daily = daily.set_index("date").sort_index()
         targets = ["purchase_per_capita", "consume_per_capita", "transfer_per_capita"]
@@ -487,28 +490,28 @@ class STLModel:
             series = self.daily[target].dropna()
             short_name = target.replace("_per_capita", "")
 
-            # --- f1: ARIMA mean prediction ---
+            # --- Step 1: f1 via ARIMA ---
             self.f1[short_name] = arima_predict_mean(series)
 
-            # --- Weekly STL → S_week ---
+            # --- Step 2: Weekly STL → S_week ---
             stl_w = stl_decompose_weekly(series)
-            self.S_week[short_name] = extract_weekday_factors(
-                stl_w, stl_w.index
-            )
+            self.S_week[short_name] = extract_weekday_factors(stl_w, stl_w.index)
 
-            # --- Monthly STL → S_month ---
+            # --- Step 2: Monthly STL (30-day aligned, Apr-Aug only) → S_month ---
             series_30 = align_to_30_day_month(series)
             stl_m = stl_decompose_monthly(series_30)
             self.S_month[short_name] = extract_dayofmonth_factors(stl_m)
 
-            # --- f_feast: holiday effect from Qingming/Duanwu ---
+            # --- Step 2/3: f_feast = mean of Qingming/Duanwu STL residuals ---
+            # This IS the PPT's "节假日修正": holiday effect extracted from
+            # STL remainder, applied multiplicatively in prediction.
             self.f_feast[short_name] = compute_feast_factor(
                 stl_w,
                 [QINGMING_DATES, DUANWU_DATES],
                 MID_AUTUMN_DATES,
             )
 
-            # --- f_bigfeast: National Day pre-effect ---
+            # --- Step 4: f_bigfeast coefficient table ---
             self.f_bigfeast[short_name] = compute_bigfeast_factor(stl_w)
 
         return self

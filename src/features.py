@@ -81,6 +81,27 @@ def _date_features(df: pd.DataFrame) -> pd.DataFrame:
     out["day_cos"] = np.cos(2 * np.pi * out["day"] / 31)
     out["month_sin"] = np.sin(2 * np.pi * out["month"] / 12)
     out["month_cos"] = np.cos(2 * np.pi * out["month"] / 12)
+
+    # Days to/from nearest holiday (G: holiday-distance features)
+    holiday_dt_list = pd.to_datetime(sorted(HOLIDAYS))
+    days_to = np.full(len(out), 30, dtype=float)
+    days_from = np.full(len(out), 30, dtype=float)
+    for i, d in enumerate(date):
+        diffs = (holiday_dt_list - d).days
+        future = diffs[diffs >= 0]
+        past = diffs[diffs <= 0]
+        if len(future) > 0:
+            days_to[i] = future.min()
+        if len(past) > 0:
+            days_from[i] = abs(past.max())
+    out["days_to_holiday"] = np.clip(days_to, 0, 30)
+    out["days_from_holiday"] = np.clip(days_from, 0, 30)
+
+    # Pre-National-Day window (Sep 25-30)
+    out["is_pre_national_day"] = (
+        (date.dt.month == 9) & (date.dt.day >= 25) & (date.dt.day <= 30)
+    ).astype(int)
+
     return out
 
 
