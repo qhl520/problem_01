@@ -17,3 +17,9 @@ output/diagnostics/
 output/logs/
 
 !output/tc_comp_predict_table.csv
+!output/stl_ensemble_config.json
+!output/best_131/
+!output/best_131/tc_comp_predict_table.csv
+!output/best_131/target_totals.json
+!output/best_131/best_131_summary.md
+!output/final_submission_check_report.md

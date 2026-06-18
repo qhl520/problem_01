@@ -7,17 +7,23 @@ then generates the best September submission.
 from __future__ import annotations
 
 import json
+import shutil
 import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from config import FINAL_SUBMISSION_PATH, OUTPUT_DIR, PREDICT_END_DATE, PREDICT_START_DATE, PROCESSED_DATA_DIR
+from config import FINAL_SUBMISSION_PATH, OUTPUT_DIR, PREDICT_END_DATE, PREDICT_START_DATE, PROCESSED_DATA_DIR, RAW_DATA_DIR
+from data_utils import load_daily_balance_fallback
 from data_utils import read_submission, validate_submission
 from evaluate import mape, weighted_score
 
 warnings.filterwarnings("ignore")
+
+BEST_131_DIR = OUTPUT_DIR / "best_131"
+BEST_131_PATH = BEST_131_DIR / "tc_comp_predict_table.csv"
+BEST_131_TOTALS_PATH = BEST_131_DIR / "target_totals.json"
 
 
 def main() -> None:
@@ -25,20 +31,15 @@ def main() -> None:
     print("PPT-Aligned Ensemble Optimization v2")
     print("=" * 60)
 
-    daily = pd.read_csv(PROCESSED_DATA_DIR / "daily_balance.csv", parse_dates=["date"])
+    daily = load_daily_balance_fallback(RAW_DATA_DIR, PROCESSED_DATA_DIR)
 
     # 1. Get STL hybrid prediction
     print("\n[1/4] Computing STL hybrid prediction ...")
-    from stl_model import (
-        STLModel, classify_users, compute_daily_stats,
-        load_raw_balance, run_stl_pipeline,
-    )
+    from stl_model import STLModel, load_daily_stats_fallback
 
     # Build STL model for backtest
     try:
-        raw = load_raw_balance()
-        raw = classify_users(raw)
-        daily_stats = compute_daily_stats(raw)
+        daily_stats = load_daily_stats_fallback()
     except Exception:
         daily_stats = daily.copy()
         daily_stats["date"] = pd.to_datetime(daily_stats["date"])
@@ -53,16 +54,19 @@ def main() -> None:
     stl_model = STLModel()
     stl_model.fit(daily_stats)
 
-    # Get initial totals for hybrid anchoring
-    initial_path = OUTPUT_DIR / "original" / "tc_initial.csv"
+    # Get 131 locked totals.  This project intentionally keeps only the
+    # 131 STL ensemble flow; old 120/121 output/original anchors are not used.
     target_totals = None
-    if initial_path.exists():
-        initial = read_submission(initial_path)
+    if BEST_131_TOTALS_PATH.exists():
+        target_totals = json.loads(BEST_131_TOTALS_PATH.read_text(encoding="utf-8"))
+        print(f"  Best-131 locked totals: purchase={target_totals['purchase']:,.0f}  redeem={target_totals['redeem']:,.0f}")
+    elif FINAL_SUBMISSION_PATH.exists():
+        initial = read_submission(FINAL_SUBMISSION_PATH)
         target_totals = {
             "purchase": float(initial["purchase"].sum()),
             "redeem": float(initial["redeem"].sum()),
         }
-        print(f"  Initial totals: purchase={target_totals['purchase']:,.0f}  redeem={target_totals['redeem']:,.0f}")
+        print(f"  Current final totals: purchase={target_totals['purchase']:,.0f}  redeem={target_totals['redeem']:,.0f}")
 
     # 2. Backtest all components on Jun/Jul/Aug
     print("\n[2/4] Backtesting components ...")
@@ -219,6 +223,9 @@ def main() -> None:
         FINAL_SUBMISSION_PATH, index=False, header=False,
     )
     validate_submission(FINAL_SUBMISSION_PATH)
+    BEST_131_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(FINAL_SUBMISSION_PATH, BEST_131_PATH)
+    validate_submission(BEST_131_PATH)
 
     # Verify and display
     final = pd.read_csv(FINAL_SUBMISSION_PATH, header=None, names=["date", "purchase", "redeem"])
@@ -234,6 +241,13 @@ def main() -> None:
             "w_weekday_rule": w_wr,
             "w_recent14": w_r14,
             "backtest_score": best_score,
+        }, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    BEST_131_TOTALS_PATH.write_text(
+        json.dumps({
+            "purchase": int(final["purchase"].sum()),
+            "redeem": int(final["redeem"].sum()),
         }, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )

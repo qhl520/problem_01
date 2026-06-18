@@ -143,6 +143,52 @@ def find_user_balance_file(raw_dir: Path) -> Path | None:
     return None
 
 
+def normalize_daily_frame(daily: pd.DataFrame) -> pd.DataFrame:
+    """Return daily data with date, purchase, redeem columns."""
+    daily = daily.copy()
+    if "report_date" in daily.columns and "date" not in daily.columns:
+        daily["date"] = parse_competition_date(daily["report_date"])
+    if "date" not in daily.columns and daily.index.name == "date":
+        daily = daily.reset_index()
+    if "date" not in daily.columns:
+        raise ValueError("Daily data must contain date column or date index.")
+
+    daily["date"] = pd.to_datetime(daily["date"])
+    daily = daily.rename(
+        columns={
+            "total_purchase_amt": "purchase",
+            "total_redeem_amt": "redeem",
+        }
+    )
+    required = ["date", "purchase", "redeem"]
+    missing = [col for col in required if col not in daily.columns]
+    if missing:
+        raise ValueError(f"Missing required daily columns: {missing}")
+    return daily[required].dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+
+
+def load_daily_balance_fallback(raw_dir: Path, processed_dir: Path) -> pd.DataFrame:
+    """Load daily purchase/redeem from raw user_balance, falling back to processed data."""
+    raw_path = find_user_balance_file(raw_dir)
+    if raw_path is not None:
+        df, _ = read_csv_safely(raw_path, usecols=["report_date", "total_purchase_amt", "total_redeem_amt"])
+        daily = (
+            df.groupby("report_date", as_index=False)
+            .agg(
+                total_purchase_amt=("total_purchase_amt", "sum"),
+                total_redeem_amt=("total_redeem_amt", "sum"),
+            )
+        )
+        return normalize_daily_frame(daily)
+
+    processed_path = processed_dir / "daily_balance.csv"
+    if processed_path.exists():
+        df, _ = read_csv_safely(processed_path)
+        return normalize_daily_frame(df)
+
+    raise FileNotFoundError("Missing both data/raw/user_balance_table.csv and data/processed/daily_balance.csv.")
+
+
 def read_submission(path: Path | str) -> pd.DataFrame:
     path = Path(path)
     if not path.exists():

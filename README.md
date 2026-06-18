@@ -1,213 +1,161 @@
-# 余额宝资金申购赎回预测
+# 余额宝资金申购赎回预测：131 分 STL 集成版
 
-本项目是天池余额宝资金流入流出预测竞赛的工程化版本，目标是预测 2014 年 9 月每天的平台总申购额 `purchase` 和总赎回额 `redeem`。金额单位为分，最终提交文件为无表头 CSV。
+本项目保留当前有效的 **131 分逻辑**，即你运行的：
 
-当前默认提交文件：
+```bash
+python src/optimize_ensemble_v2.py
+```
+
+旧的 120/121 分 baseline、传统随机森林/LightGBM 训练入口、旧 high_score 输出、probe 输出和模型缓存都已移除。现在项目只有一条主流程：**STL/PPT 对齐分解 + weekday rule + recent14 rule 集成**。
+
+## 最终提交文件
+
+需要提交的文件是：
 
 ```text
 output/tc_comp_predict_table.csv
 ```
 
-当前保留的最终方案是线上反馈驱动的 121 分左右方案：
+项目也会保存一份 131 固化副本：
 
 ```text
-initial 原始模型基线
-+ 锁定 purchase/redeem 全月总量
-+ 日级形状重分配
-+ 主方案 / 保守备选方案
+output/best_131/tc_comp_predict_table.csv
 ```
 
-## 赛题目标
+两者应保持一致。
 
-预测区间：
+当前 131 文件月总量记录在：
 
 ```text
-2014-09-01 至 2014-09-30
+output/best_131/target_totals.json
 ```
 
-提交格式：
+## 一键运行
 
-```csv
-20140901,295000000,331000000
-20140902,287000000,298000000
-```
-
-要求：
-
-- 文件名为 `tc_comp_predict_table.csv`
-- 无表头
-- 30 行，日期覆盖 `20140901` 到 `20140930`
-- `purchase` 和 `redeem` 为非负整数，单位为分
-
-## 数据说明
-
-原始数据需要放在：
-
-```text
-data/raw/
-```
-
-需要的赛题文件包括：
-
-```text
-user_balance_table.csv
-user_profile_table.csv
-mfd_day_share_interest.csv
-mfd_bank_shibor.csv
-comp_predict_table.csv
-```
-
-GitHub 精简版本默认不包含 `data/raw/`，请从赛题官网下载原始数据后自行放入该目录。
-
-## 目录结构
-
-```text
-fund_forecast/
-├─ data/
-│  ├─ raw/                         # 本地原始赛题数据，GitHub 版本不提交
-│  └─ processed/
-│     └─ daily_balance.csv          # 日级汇总数据，可由 make_daily_data.py 再生成
-├─ output/
-│  ├─ tc_comp_predict_table.csv     # 当前默认最终提交，等于 121 主方案
-│  ├─ original/
-│  │  └─ tc_initial.csv             # 原始模型基线提交
-│  └─ high_score_final/
-│     ├─ tc_comp_predict_table.csv  # 121 主方案
-│     └─ tc_comp_predict_table_conservative.csv
-├─ report/
-├─ src/
-├─ .gitignore
-├─ README.md
-├─ requirements.txt
-├─ run_all.py
-└─ run_original_plus_121.py
-```
-
-## 环境安装
-
-建议使用 Python 3.10 或 3.11。
+推荐运行：
 
 ```bash
-pip install -r requirements.txt
+python run_131_pipeline.py
+```
+
+该命令会依次执行：
+
+```text
+src/optimize_ensemble_v2.py
+src/final_check.py
+```
+
+也可以单独运行核心脚本：
+
+```bash
+python src/optimize_ensemble_v2.py
+```
+
+## 131 模型思路
+
+核心脚本：
+
+```text
+src/optimize_ensemble_v2.py
 ```
 
 主要依赖：
 
 ```text
-pandas
-numpy
-scikit-learn
-matplotlib
-joblib
-lightgbm
-tqdm
+src/stl_model.py
+src/rule_models.py
+src/data_utils.py
+src/evaluate.py
 ```
 
-如果 `lightgbm` 不可用，项目会在部分模型工具中降级到 scikit-learn 的 `HistGradientBoostingRegressor`。
+流程概要：
 
-## 一键运行
+1. 从 `data/raw/user_balance_table.csv` 聚合日级 purchase/redeem；如果 raw 不存在，则回退到 `data/processed/daily_balance.csv`。
+2. 使用 `stl_model.py` 构建 STL/PPT 对齐分解模型。
+3. 对 2014 年 6/7/8 月进行回测，网格搜索 STL、weekday rule、recent14 rule 的融合权重。
+4. 预测 2014 年 9 月 30 天。
+5. 输出官方无表头提交文件 `output/tc_comp_predict_table.csv`。
+6. 同步固化到 `output/best_131/tc_comp_predict_table.csv`。
 
-原始工程完整流程：
+## 数据目录
 
-```bash
-python run_all.py
-```
-
-当前推荐复现流程：
-
-```bash
-python run_original_plus_121.py
-```
-
-默认会在生成最终文件后清理可再生成的模型、EDA、诊断、日志和历史候选输出目录；调试时可使用：
-
-```bash
-python run_original_plus_121.py --keep-intermediate
-```
-
-该流程会：
-
-1. 运行原始建模链路，生成 initial 基线提交；
-2. 保存原始提交到 `output/original/tc_initial.csv`；
-3. 基于 initial 总量生成 121 主方案和保守备选方案；
-4. 将主方案复制到 `output/tc_comp_predict_table.csv`。
-
-如果已经有 `output/original/tc_initial.csv`，只想重新生成两个 121 文件：
-
-```bash
-python src/generate_121_submissions.py --initial output/original/tc_initial.csv
-```
-
-## 当前最终方案
-
-线上反馈表明：
-
-- `initial` 原始版本线上约 120 分，是当前可靠基线；
-- `redeem * 1.015` 约 118 分；
-- `redeem * 1.030` 约 117 分；
-- `rule_bank_best` 本地验证更高，但线上低于 initial。
-
-因此最终结论是：`redeem` 全月总量不宜整体上调，也不宜大幅下调。当前最终方案锁定 initial 的 `purchase/redeem` 全月总量，只做温和的日级形状重分配。
-
-保留输出：
-
-```text
-output/original/tc_initial.csv
-output/high_score_final/tc_comp_predict_table.csv
-output/high_score_final/tc_comp_predict_table_conservative.csv
-output/tc_comp_predict_table.csv
-```
-
-其中 `output/tc_comp_predict_table.csv` 等于 `output/high_score_final/tc_comp_predict_table.csv`。
-
-## 检查命令
-
-```bash
-python src/final_check.py
-python src/check_official_requirements.py
-```
-
-检查内容包括：
-
-- 30 行
-- 无表头
-- 日期完整且升序
-- 日期不重复
-- `purchase/redeem` 为非负整数
-- 金额单位为分
-
-## GitHub 提交注意事项
-
-建议保留：
-
-```text
-README.md
-requirements.txt
-.gitignore
-run_all.py
-run_original_plus_121.py
-src/
-report/
-data/processed/daily_balance.csv
-output/original/tc_initial.csv
-output/high_score_final/tc_comp_predict_table.csv
-output/high_score_final/tc_comp_predict_table_conservative.csv
-output/tc_comp_predict_table.csv
-```
-
-不要提交：
+本地完整数据放在：
 
 ```text
 data/raw/
-output/models/
-output/eda/
-output/diagnostics/
-.git/
-__pycache__/
-*.pyc
-*.pyo
 ```
 
-## 文件清理状态
+GitHub/课程精简版不提交 `data/raw/`。如果没有 raw 数据，脚本会尝试使用：
 
-当前项目已清理历史实验候选池、模型缓存、EDA 图片、诊断旧文件和 Python 缓存。`output/` 目录只保留当前交付相关提交文件和工程整理报告。
+```text
+data/processed/daily_balance.csv
+```
+
+## 提交格式
+
+官方提交文件必须是无表头 CSV：
+
+```csv
+20140901,purchase,redeem
+20140902,purchase,redeem
+...
+20140930,purchase,redeem
+```
+
+金额单位为分，必须是非负整数。
+
+格式检查：
+
+```bash
+python src/final_check.py
+```
+
+完整赛题数据检查：
+
+```bash
+python src/check_official_requirements.py
+```
+
+## 当前保留结构
+
+```text
+fund_forecast/
+├── data/
+│   ├── raw/                         # 本地原始数据，不提交
+│   └── processed/daily_balance.csv
+├── output/
+│   ├── best_131/
+│   │   ├── tc_comp_predict_table.csv
+│   │   ├── target_totals.json
+│   │   └── best_131_summary.md
+│   ├── stl_ensemble_config.json
+│   └── tc_comp_predict_table.csv
+├── report/
+│   └── fund_forecast_report.md
+├── src/
+│   ├── config.py
+│   ├── data_utils.py
+│   ├── evaluate.py
+│   ├── rule_models.py
+│   ├── stl_model.py
+│   ├── optimize_ensemble_v2.py
+│   ├── final_check.py
+│   └── check_official_requirements.py
+├── run_131_pipeline.py
+├── requirements.txt
+└── README.md
+```
+
+## 注意
+
+不要再提交或引用旧文件：
+
+```text
+output/high_score_final/
+output/original/
+output/best_130/
+output/probes_130/
+output/tc_comp_predict_table_best.csv
+```
+
+这些旧逻辑已经从当前项目中删除。
