@@ -22,4 +22,11 @@ output/logs/
 !output/best_131/tc_comp_predict_table.csv
 !output/best_131/target_totals.json
 !output/best_131/best_131_summary.md
+!output/baseline_131/
+!output/baseline_131/tc_comp_predict_table.csv
+!output/baseline_131/target_totals.json
+!output/baseline_131/baseline_131_summary.md
+!output/candidates_131/
+!output/candidates_131/*.csv
+!output/candidates_131/*.md
 !output/final_submission_check_report.md

@@ -1,161 +1,151 @@
-# 余额宝资金申购赎回预测：131 分 STL 集成版
+# 余额宝资金申购赎回预测：131 基线强候选版
 
-本项目保留当前有效的 **131 分逻辑**，即你运行的：
+本项目当前只保留已经验证过的 **131 分 STL ensemble 基线**，并在其上生成少量、高信息量、可回滚的冲分候选。候选策略吸收了公开方案中的有效思路：总量锁定、节假日/调休单独修正、redeem 单独激进调参、purchase 拆分为 direct_purchase + share、calendar 弱模型小权重融合，但不直接搬用旧代码。
 
-```bash
-python src/optimize_ensemble_v2.py
+## 绝对保护的 131 基线
+
+```text
+output/baseline_131/tc_comp_predict_table.csv
 ```
 
-旧的 120/121 分 baseline、传统随机森林/LightGBM 训练入口、旧 high_score 输出、probe 输出和模型缓存都已移除。现在项目只有一条主流程：**STL/PPT 对齐分解 + weekday rule + recent14 rule 集成**。
+该文件是保底锚点。候选生成脚本只会在它缺失时初始化一次，之后默认不覆盖。不要手动覆盖这个文件。
 
-## 最终提交文件
-
-需要提交的文件是：
+当前最终提交文件是：
 
 ```text
 output/tc_comp_predict_table.csv
 ```
 
-项目也会保存一份 131 固化副本：
+只有当某个候选线上分数高于 131 时，才手动晋级为最终提交。
 
-```text
-output/best_131/tc_comp_predict_table.csv
-```
-
-两者应保持一致。
-
-当前 131 文件月总量记录在：
-
-```text
-output/best_131/target_totals.json
-```
-
-## 一键运行
-
-推荐运行：
+## 重新生成 131 主流程
 
 ```bash
 python run_131_pipeline.py
 ```
 
-该命令会依次执行：
+主模型仍是：
 
-```text
-src/optimize_ensemble_v2.py
-src/final_check.py
-```
+- STL/PPT 对齐分解；
+- weekday rule；
+- recent14 rule；
+- redeem = consume + transfer；
+- 2014 年 6/7/8 月回测搜索 ensemble 权重；
+- 输出官方无表头 CSV。
 
-也可以单独运行核心脚本：
+## 生成 3 个强候选
 
 ```bash
-python src/optimize_ensemble_v2.py
+python run_131_candidate_pipeline.py
 ```
 
-## 131 模型思路
+或：
 
-核心脚本：
+```bash
+python src/generate_131_candidates.py
+```
+
+输出目录：
 
 ```text
-src/optimize_ensemble_v2.py
+output/candidates_131/
 ```
 
-主要依赖：
+摘要文件：
 
 ```text
-src/stl_model.py
-src/rule_models.py
-src/data_utils.py
-src/evaluate.py
+output/candidates_131/candidates_summary.csv
+output/candidates_131/candidates_summary.md
 ```
 
-流程概要：
+每次生成会清理旧候选目录里的旧候选文件，只保留当前 3 个候选。
 
-1. 从 `data/raw/user_balance_table.csv` 聚合日级 purchase/redeem；如果 raw 不存在，则回退到 `data/processed/daily_balance.csv`。
-2. 使用 `stl_model.py` 构建 STL/PPT 对齐分解模型。
-3. 对 2014 年 6/7/8 月进行回测，网格搜索 STL、weekday rule、recent14 rule 的融合权重。
-4. 预测 2014 年 9 月 30 天。
-5. 输出官方无表头提交文件 `output/tc_comp_predict_table.csv`。
-6. 同步固化到 `output/best_131/tc_comp_predict_table.csv`。
+## 当前推荐提交候选
 
-## 数据目录
-
-本地完整数据放在：
+优先级从高到低：
 
 ```text
-data/raw/
+04_bigfeast_2013_shape_w18_plus_0_6pct.csv
+05_bigfeast_2013_shape_w26_plus_0_6pct.csv
 ```
 
-GitHub/课程精简版不提交 `data/raw/`。如果没有 raw 数据，脚本会尝试使用：
+策略说明：
 
-```text
-data/processed/daily_balance.csv
-```
+- `04_bigfeast_2013_shape_w18_plus_0_6pct.csv`：吸收 200+ 答辩 PPT 的 `f_bigfeast` 思路，用 2013 年 9 月 25-30 日真实 redeem 分布作为国庆前异常项参考，将 2014 年 9 月 25-30 日形状向历史分布靠拢 18%，并保持已验证有效方向的全月 redeem +0.6%。
+- `05_bigfeast_2013_shape_w26_plus_0_6pct.csv`：同样使用 2013 国庆前真实分布，但靠拢强度提高到 26%，更激进地测试 9/25 和 9/28 偏高、9/29 和 9/30 偏低的历史形状。
 
-## 提交格式
+已有线上反馈：
 
-官方提交文件必须是无表头 CSV：
+- `01_redeem_total_plus_1_1pct.csv` = 131，说明单纯抬 redeem 总量不够。
+- `02_national_early_shift_plus_0_6pct.csv` = 133，说明国庆前 redeem 前移方向有效。
+- `03_purchase_decomp_linear_0909.csv` = 126，暂时不继续押 purchase 分解/9 月 9 日组合候选。
 
-```csv
-20140901,purchase,redeem
-20140902,purchase,redeem
-...
-20140930,purchase,redeem
-```
+## 验证格式
 
-金额单位为分，必须是非负整数。
-
-格式检查：
+检查当前最终提交：
 
 ```bash
 python src/final_check.py
 ```
 
-完整赛题数据检查：
+检查官方数据与字段要求：
 
 ```bash
 python src/check_official_requirements.py
 ```
 
-## 当前保留结构
+所有候选生成时都会自动校验：
 
-```text
-fund_forecast/
-├── data/
-│   ├── raw/                         # 本地原始数据，不提交
-│   └── processed/daily_balance.csv
-├── output/
-│   ├── best_131/
-│   │   ├── tc_comp_predict_table.csv
-│   │   ├── target_totals.json
-│   │   └── best_131_summary.md
-│   ├── stl_ensemble_config.json
-│   └── tc_comp_predict_table.csv
-├── report/
-│   └── fund_forecast_report.md
-├── src/
-│   ├── config.py
-│   ├── data_utils.py
-│   ├── evaluate.py
-│   ├── rule_models.py
-│   ├── stl_model.py
-│   ├── optimize_ensemble_v2.py
-│   ├── final_check.py
-│   └── check_official_requirements.py
-├── run_131_pipeline.py
-├── requirements.txt
-└── README.md
+- 无表头；
+- 30 行；
+- 日期为 20140901-20140930；
+- purchase/redeem 为非负整数；
+- 金额单位为分。
+
+## 手动晋级候选
+
+只有线上分数高于 131 才晋级：
+
+```bash
+python src/promote_candidate.py --candidate output/candidates_131/04_bigfeast_2013_shape_w18_plus_0_6pct.csv
 ```
 
-## 注意
-
-不要再提交或引用旧文件：
+晋级会备份当前：
 
 ```text
-output/high_score_final/
-output/original/
-output/best_130/
-output/probes_130/
-output/tc_comp_predict_table_best.csv
+output/tc_comp_predict_table.csv
 ```
 
-这些旧逻辑已经从当前项目中删除。
+备份目录：
+
+```text
+output/backups/
+```
+
+晋级不会覆盖：
+
+```text
+output/baseline_131/tc_comp_predict_table.csv
+```
+
+## 可选分析脚本
+
+用户行为日统计：
+
+```bash
+python src/build_user_behavior_stats.py
+```
+
+purchase 分解实验：
+
+```bash
+python src/experiment_purchase_decomposition.py
+```
+
+calendar 弱模型：
+
+```bash
+python src/simple_linear_date_model.py
+```
+
+这些脚本只产出 analysis/experiments 文件，不替换主模型。

@@ -21,16 +21,15 @@ FINAL_SUBMISSION_PATH = OUTPUT_DIR / "tc_comp_predict_table.csv"
 
 
 def ensure_directories() -> None:
-    """Create project directories used by scripts."""
+    """Create only stable project directories.
+
+    Runtime-specific directories are created by the scripts that actually
+    write to them, which keeps a clean checkout from filling with empty dirs.
+    """
     for path in [
         RAW_DATA_DIR,
         PROCESSED_DATA_DIR,
         OUTPUT_DIR,
-        EDA_OUTPUT_DIR,
-        MODEL_DIR,
-        SUBMISSION_DIR,
-        LOG_DIR,
-        DIAGNOSTIC_DIR,
         REPORT_DIR,
     ]:
         path.mkdir(parents=True, exist_ok=True)

@@ -24,6 +24,9 @@ warnings.filterwarnings("ignore")
 BEST_131_DIR = OUTPUT_DIR / "best_131"
 BEST_131_PATH = BEST_131_DIR / "tc_comp_predict_table.csv"
 BEST_131_TOTALS_PATH = BEST_131_DIR / "target_totals.json"
+BASELINE_131_DIR = OUTPUT_DIR / "baseline_131"
+BASELINE_131_PATH = BASELINE_131_DIR / "tc_comp_predict_table.csv"
+BASELINE_131_TOTALS_PATH = BASELINE_131_DIR / "target_totals.json"
 
 
 def main() -> None:
@@ -226,6 +229,10 @@ def main() -> None:
     BEST_131_DIR.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(FINAL_SUBMISSION_PATH, BEST_131_PATH)
     validate_submission(BEST_131_PATH)
+    BASELINE_131_DIR.mkdir(parents=True, exist_ok=True)
+    if not BASELINE_131_PATH.exists():
+        shutil.copyfile(BEST_131_PATH, BASELINE_131_PATH)
+        validate_submission(BASELINE_131_PATH)
 
     # Verify and display
     final = pd.read_csv(FINAL_SUBMISSION_PATH, header=None, names=["date", "purchase", "redeem"])
@@ -251,6 +258,20 @@ def main() -> None:
         }, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    if not BASELINE_131_TOTALS_PATH.exists():
+        BASELINE_131_TOTALS_PATH.write_text(
+            json.dumps({
+                "purchase": int(final["purchase"].sum()),
+                "redeem": int(final["redeem"].sum()),
+            }, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        (BASELINE_131_DIR / "baseline_131_summary.md").write_text(
+            "# Baseline 131 Protected Copy\n\n"
+            "This directory is initialized once from the verified 131 submission. "
+            "Candidate-generation scripts must never overwrite it by default.\n",
+            encoding="utf-8",
+        )
 
     print("=" * 60)
 
