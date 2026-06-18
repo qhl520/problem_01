@@ -1,3 +1,16 @@
+"""DEPRECATED: Legacy single-fold RandomForest training script.
+
+This module performs a single train/validate split (train ≤2014-07-31, validate
+2014-08) and saves models as ``random_forest_purchase.pkl`` / ``random_forest_redeem.pkl``.
+
+Use the canonical pipeline instead:
+    - Training:  ``src/train_final.py``                        (saves final_random_forest_*.pkl)
+    - CV:        ``src/cross_validate.py --model random_forest`` (3-fold evaluation)
+    - Prediction: ``src/predict_final.py``                      (ensemble prediction)
+
+Kept for reference only; not used by ``run_all.py`` or ``run_original_plus_121.py``.
+"""
+
 from __future__ import annotations
 
 import pandas as pd

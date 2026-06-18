@@ -1,3 +1,15 @@
+"""DEPRECATED: V1 baseline — same-weekday rule model prediction.
+
+A weekday-rule baseline that predicts September 2014 using the same-weekday
+pattern from history.
+
+Superseded by the rule models in ``src/rule_models.py`` (which provides the
+same ``predict_weekday_rule`` function with more options) and the canonical
+ensemble pipeline ``src/predict_final.py``.
+
+Kept for reference only; not used by ``run_all.py`` or ``run_original_plus_121.py``.
+"""
+
 from __future__ import annotations
 
 import pandas as pd

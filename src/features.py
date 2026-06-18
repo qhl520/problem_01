@@ -81,6 +81,27 @@ def _date_features(df: pd.DataFrame) -> pd.DataFrame:
     out["day_cos"] = np.cos(2 * np.pi * out["day"] / 31)
     out["month_sin"] = np.sin(2 * np.pi * out["month"] / 12)
     out["month_cos"] = np.cos(2 * np.pi * out["month"] / 12)
+
+    # Days to/from nearest holiday (G: holiday-distance features)
+    holiday_dt_list = pd.to_datetime(sorted(HOLIDAYS))
+    days_to = np.full(len(out), 30, dtype=float)
+    days_from = np.full(len(out), 30, dtype=float)
+    for i, d in enumerate(date):
+        diffs = (holiday_dt_list - d).days
+        future = diffs[diffs >= 0]
+        past = diffs[diffs <= 0]
+        if len(future) > 0:
+            days_to[i] = future.min()
+        if len(past) > 0:
+            days_from[i] = abs(past.max())
+    out["days_to_holiday"] = np.clip(days_to, 0, 30)
+    out["days_from_holiday"] = np.clip(days_from, 0, 30)
+
+    # Pre-National-Day window (Sep 25-30)
+    out["is_pre_national_day"] = (
+        (date.dt.month == 9) & (date.dt.day >= 25) & (date.dt.day <= 30)
+    ).astype(int)
+
     return out
 
 
@@ -103,8 +124,8 @@ def _target_history_features(out: pd.DataFrame) -> pd.DataFrame:
             out[f"{target}_rolling_{window}_max"] = shifted.rolling(window).max()
             out[f"{target}_rolling_{window}_min"] = shifted.rolling(window).min()
             out[f"{target}_rolling_{window}_sum"] = shifted.rolling(window).sum()
-        for idx, lag in enumerate([7, 14, 21, 28], start=1):
-            out[f"{target}_same_weekday_last_{idx}"] = out[target].shift(lag)
+        # same_weekday_last_{idx} removed — they were identical to lag_7/14/21/28.
+        # The mean/median aggregations below still use the shifted values directly.
         same_weekday_4 = pd.concat([out[target].shift(lag) for lag in [7, 14, 21, 28]], axis=1)
         same_weekday_8 = pd.concat([out[target].shift(lag) for lag in [7, 14, 21, 28, 35, 42, 49, 56]], axis=1)
         out[f"{target}_same_weekday_mean_4"] = same_weekday_4.mean(axis=1)
@@ -173,8 +194,16 @@ def _add_finance_lags(out: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def make_features(df: pd.DataFrame, use_finance: bool = True, use_profile: bool = True, outlier_mode: str = "none") -> pd.DataFrame:
-    del use_profile, outlier_mode
+def make_features(df: pd.DataFrame, use_finance: bool = True) -> pd.DataFrame:
+    """Build feature matrix from daily balance data.
+
+    Args:
+        df: DataFrame with columns date, purchase, redeem.
+        use_finance: If True, attach Shibor and yield features with lag.
+
+    Returns:
+        Feature DataFrame with date, purchase, redeem, and derived columns.
+    """
     out = df.copy()
     out["date"] = pd.to_datetime(out["date"])
     out = out.sort_values("date").reset_index(drop=True)
